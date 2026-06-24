@@ -6,7 +6,7 @@ Every generation makes an actual LLM API call. Token counts come from real API `
 
 ## Features
 
-- **Real LLM evolution** every generation (Grok default, also Ollama/OpenAI/Claude)
+- **Real LLM evolution** every generation (OpenRouter default, also Grok/Ollama/OpenAI/Claude)
 - **Live file-backed state** — `state.json`, `best_prompt.md`, `EVOLUTION.md`, `latest_summary.md`
 - **Rich TUI dashboard** — fitness bars, sparklines, token rates, CPU/memory
 - **Per-iteration summaries** — file + terminal + TUI + evolution log
@@ -23,8 +23,8 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Required for default Grok provider
-export XAI_API_KEY="your-xai-api-key"
+# Required for default OpenRouter provider
+export OPENROUTER_API_KEY="your-openrouter-api-key"
 
 # Optional — for GitHub issue on completion
 export GITHUB_TOKEN="your-github-token"
@@ -52,14 +52,27 @@ python seple_runner.py --reset
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SEPLE_LLM_PROVIDER` | `grok` | `grok`, `openai`, `anthropic`, `ollama` |
-| `SEPLE_MODEL` | `grok-3` | Model name for provider |
+| `SEPLE_LLM_PROVIDER` | `openrouter` | `openrouter`, `grok`, `openai`, `anthropic`, `ollama` |
+| `SEPLE_MODEL` | `google/gemini-2.5-flash` | Model slug for provider |
+| `OPENROUTER_API_KEY` | — | OpenRouter API key |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter API base URL |
 | `XAI_API_KEY` | — | Grok/xAI API key |
 | `OPENAI_API_KEY` | — | OpenAI API key |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
 | `SEPLE_GEN_SLEEP` | `3` | Seconds between generations |
 | `SEPLE_DASH_REFRESH` | `1.5` | Dashboard refresh interval |
+
+### OpenRouter (recommended)
+
+```bash
+export OPENROUTER_API_KEY="sk-or-..."
+export SEPLE_LLM_PROVIDER=openrouter
+export SEPLE_MODEL="google/gemini-2.5-flash"   # or any OpenRouter model slug
+python seple_runner.py
+```
+
+Browse models at [openrouter.ai/models](https://openrouter.ai/models).
 
 ### Ollama (local)
 

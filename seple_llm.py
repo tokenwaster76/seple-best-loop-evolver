@@ -22,9 +22,9 @@ class LLMResponse:
 
 
 class LLMClient:
-    """Unified client for Grok, OpenAI, Anthropic, and Ollama."""
+    """Unified client for OpenRouter, Grok, OpenAI, Anthropic, and Ollama."""
 
-    PROVIDERS = ("grok", "openai", "anthropic", "ollama")
+    PROVIDERS = ("openrouter", "grok", "openai", "anthropic", "ollama")
 
     def __init__(
         self,
@@ -32,7 +32,7 @@ class LLMClient:
         model: str | None = None,
         timeout: int = 180,
     ) -> None:
-        self.provider = (provider or os.getenv("SEPLE_LLM_PROVIDER", "grok")).lower()
+        self.provider = (provider or os.getenv("SEPLE_LLM_PROVIDER", "openrouter")).lower()
         self.model = model or os.getenv("SEPLE_MODEL", self._default_model())
         self.timeout = timeout
 
@@ -44,6 +44,7 @@ class LLMClient:
 
     def _default_model(self) -> str:
         defaults = {
+            "openrouter": "google/gemini-2.5-flash",
             "grok": "grok-3",
             "openai": "gpt-4o",
             "anthropic": "claude-sonnet-4-20250514",
@@ -53,6 +54,7 @@ class LLMClient:
 
     def _validate_credentials(self) -> None:
         required = {
+            "openrouter": ("OPENROUTER_API_KEY", "Set OPENROUTER_API_KEY for OpenRouter API."),
             "grok": ("XAI_API_KEY", "Set XAI_API_KEY for Grok/xAI API."),
             "openai": ("OPENAI_API_KEY", "Set OPENAI_API_KEY for OpenAI API."),
             "anthropic": ("ANTHROPIC_API_KEY", "Set ANTHROPIC_API_KEY for Anthropic API."),
@@ -65,6 +67,7 @@ class LLMClient:
     def chat(self, system: str, user: str, temperature: float = 0.7) -> LLMResponse:
         """Make a real LLM API call and return content + token usage."""
         dispatch = {
+            "openrouter": self._chat_openrouter,
             "grok": self._chat_openai_compatible,
             "openai": self._chat_openai_compatible,
             "anthropic": self._chat_anthropic,
@@ -94,16 +97,15 @@ class LLMClient:
             raise last_error
         raise RuntimeError("Request failed without error")
 
-    def _chat_openai_compatible(
-        self, system: str, user: str, temperature: float
+    def _openai_compatible_request(
+        self,
+        base_url: str,
+        api_key: str,
+        system: str,
+        user: str,
+        temperature: float,
+        extra_headers: dict[str, str] | None = None,
     ) -> LLMResponse:
-        if self.provider == "grok":
-            base_url = os.getenv("XAI_BASE_URL", "https://api.x.ai/v1")
-            api_key = os.environ["XAI_API_KEY"]
-        else:
-            base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-            api_key = os.environ["OPENAI_API_KEY"]
-
         payload = {
             "model": self.model,
             "messages": [
@@ -112,13 +114,17 @@ class LLMClient:
             ],
             "temperature": temperature,
         }
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        if extra_headers:
+            headers.update(extra_headers)
+
         resp = self._request_with_retry(
             "POST",
             f"{base_url.rstrip('/')}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
+            headers=headers,
             json=payload,
         )
         data = resp.json()
@@ -140,6 +146,37 @@ class LLMClient:
             total_tokens=total_tokens,
             model=self.model,
             provider=self.provider,
+        )
+
+    def _chat_openrouter(
+        self, system: str, user: str, temperature: float
+    ) -> LLMResponse:
+        base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        extra_headers = {
+            "HTTP-Referer": os.getenv("OPENROUTER_HTTP_REFERER", "https://github.com/tokenwaster76/seple-best-loop-evolver"),
+            "X-Title": os.getenv("OPENROUTER_APP_NAME", "SEPLE v5"),
+        }
+        return self._openai_compatible_request(
+            base_url,
+            os.environ["OPENROUTER_API_KEY"],
+            system,
+            user,
+            temperature,
+            extra_headers=extra_headers,
+        )
+
+    def _chat_openai_compatible(
+        self, system: str, user: str, temperature: float
+    ) -> LLMResponse:
+        if self.provider == "grok":
+            base_url = os.getenv("XAI_BASE_URL", "https://api.x.ai/v1")
+            api_key = os.environ["XAI_API_KEY"]
+        else:
+            base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+            api_key = os.environ["OPENAI_API_KEY"]
+
+        return self._openai_compatible_request(
+            base_url, api_key, system, user, temperature
         )
 
     def _chat_anthropic(
