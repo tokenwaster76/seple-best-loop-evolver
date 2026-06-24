@@ -1,0 +1,40 @@
+{
+  "generation": 0,
+  "version": "v1.0.0",
+  "best_score": 0.0,
+  "previous_score": 0.0,
+  "consecutive_high_scores": 0,
+  "status": "idle",
+  "fitness_scores": {
+    "clarity": 0,
+    "specificity": 0,
+    "robustness": 0,
+    "iterability": 0,
+    "self_awareness": 0,
+    "error_recovery": 0
+  },
+  "tokens_used": 0,
+  "tokens_this_gen": 0,
+  "token_history": [],
+  "score_history": [],
+  "self_fix_count": 0,
+  "self_fix_events": [],
+  "reflections": [],
+  "started_at": null,
+  "last_updated": null,
+  "last_generation_duration_s": 0,
+  "llm_provider": "grok",
+  "llm_model": "grok-3",
+  "stop_reason": null,
+  "max_generation": 50,
+  "checkpoint_generation": 50,
+  "checkpoints_completed": 0,
+  "last_summary": {
+    "score_delta": 0,
+    "successes": [],
+    "problems": [],
+    "improvements": []
+  },
+  "evolution_insights": [],
+  "awaiting_continue": false
+}
