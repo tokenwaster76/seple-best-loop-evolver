@@ -50,10 +50,12 @@ python seple_runner.py --reset
 
 ## LLM Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SEPLE_LLM_PROVIDER` | `openrouter` | `openrouter`, `grok`, `openai`, `anthropic`, `ollama` |
-| `SEPLE_MODEL` | `google/gemini-2.5-flash` | Model slug for provider |
+**Strong default**: Ollama + `llama3.1` when no cloud API keys are present (local-first, matches spec).
+
+| Variable | Default (auto) | Description |
+|----------|----------------|-------------|
+| `SEPLE_LLM_PROVIDER` | `ollama` (if no keys) | `openrouter`, `grok`, `openai`, `anthropic`, `ollama` |
+| `SEPLE_MODEL` | `llama3.1` (or provider default) | Model slug |
 | `OPENROUTER_API_KEY` | — | OpenRouter API key |
 | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter API base URL |
 | `XAI_API_KEY` | — | Grok/xAI API key |

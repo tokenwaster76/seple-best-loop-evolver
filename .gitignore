@@ -10,3 +10,7 @@ dist/
 build/
 .DS_Store
 continue_prompt.json
+*.log
+state.json.bak
+checkpoint_report.md.bak
+# Keep evolution history committed for audit (EVOLUTION.md, best_prompt.md, state.json evolve in git)

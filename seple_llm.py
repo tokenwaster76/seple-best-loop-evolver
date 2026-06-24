@@ -32,8 +32,35 @@ class LLMClient:
         model: str | None = None,
         timeout: int = 180,
     ) -> None:
-        self.provider = (provider or os.getenv("SEPLE_LLM_PROVIDER", "openrouter")).lower()
-        self.model = model or os.getenv("SEPLE_MODEL", self._default_model())
+        # Smart default: respect explicit env, otherwise prefer local Ollama llama3.1 when no keys
+        p = (provider or os.getenv("SEPLE_LLM_PROVIDER"))
+        m = (model or os.getenv("SEPLE_MODEL"))
+        if not p or not m:
+            # Use same auto logic as runner when not explicitly provided
+            has_or = bool(os.getenv("OPENROUTER_API_KEY"))
+            has_x = bool(os.getenv("XAI_API_KEY"))
+            has_oai = bool(os.getenv("OPENAI_API_KEY"))
+            has_ant = bool(os.getenv("ANTHROPIC_API_KEY"))
+            if p == "ollama" or (not p and not has_or and not has_x and not has_oai and not has_ant):
+                p = p or "ollama"
+                m = m or "llama3.1"
+            elif has_or:
+                p = p or "openrouter"
+                m = m or "google/gemini-2.5-flash"
+            elif has_x:
+                p = p or "grok"
+                m = m or "grok-3"
+            elif has_oai:
+                p = p or "openai"
+                m = m or "gpt-4o"
+            elif has_ant:
+                p = p or "anthropic"
+                m = m or "claude-3-5-sonnet-20241022"
+            else:
+                p = p or "ollama"
+                m = m or "llama3.1"
+        self.provider = p.lower()
+        self.model = m
         self.timeout = timeout
 
         if self.provider not in self.PROVIDERS:
@@ -47,7 +74,7 @@ class LLMClient:
             "openrouter": "google/gemini-2.5-flash",
             "grok": "grok-3",
             "openai": "gpt-4o",
-            "anthropic": "claude-sonnet-4-20250514",
+            "anthropic": "claude-3-5-sonnet-20241022",
             "ollama": "llama3.1",
         }
         return defaults[self.provider]

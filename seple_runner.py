@@ -42,6 +42,8 @@ def utc_now() -> str:
 
 
 def load_state() -> dict[str, Any]:
+    if not STATE_FILE.exists():
+        _ensure_fresh_state()
     with STATE_FILE.open(encoding="utf-8") as f:
         return json.load(f)
 
@@ -65,6 +67,83 @@ def compute_weighted_score(fitness: dict[str, float]) -> float:
     return round(
         sum(float(fitness.get(k, 0)) * w for k, w in FITNESS_WEIGHTS.items()), 1
     )
+
+
+def _get_default_provider_model() -> tuple[str, str]:
+    """Prefer Ollama llama3.1 locally when no API keys are present (per requirements)."""
+    has_openrouter = bool(os.getenv("OPENROUTER_API_KEY"))
+    has_grok = bool(os.getenv("XAI_API_KEY"))
+    has_openai = bool(os.getenv("OPENAI_API_KEY"))
+    has_anthropic = bool(os.getenv("ANTHROPIC_API_KEY"))
+
+    env_provider = os.getenv("SEPLE_LLM_PROVIDER")
+    env_model = os.getenv("SEPLE_MODEL")
+
+    if env_provider and env_model:
+        return env_provider.lower(), env_model
+
+    if env_provider:
+        prov = env_provider.lower()
+        if prov == "ollama":
+            return "ollama", env_model or "llama3.1"
+        if prov == "grok":
+            return "grok", env_model or "grok-3"
+        if prov == "openrouter":
+            return "openrouter", env_model or "google/gemini-2.5-flash"
+        if prov == "openai":
+            return "openai", env_model or "gpt-4o"
+        if prov == "anthropic":
+            return "anthropic", env_model or "claude-3-5-sonnet-20241022"
+
+    # No explicit provider: choose based on available keys, default to ollama for truly local
+    if has_openrouter:
+        return "openrouter", "google/gemini-2.5-flash"
+    if has_grok:
+        return "grok", "grok-3"
+    if has_openai:
+        return "openai", "gpt-4o"
+    if has_anthropic:
+        return "anthropic", "claude-3-5-sonnet-20241022"
+    # No keys at all -> real local default
+    return "ollama", "llama3.1"
+
+
+def _ensure_fresh_state() -> None:
+    """Create initial state.json if it does not exist. Never simulates data."""
+    prov, model = _get_default_provider_model()
+    template = {
+        "generation": 0,
+        "version": "v1.0.0",
+        "best_score": 0.0,
+        "previous_score": 0.0,
+        "consecutive_high_scores": 0,
+        "status": "idle",
+        "fitness_scores": dict.fromkeys(FITNESS_DIMS, 0),
+        "tokens_used": 0,
+        "tokens_this_gen": 0,
+        "token_history": [],
+        "score_history": [],
+        "self_fix_count": 0,
+        "self_fix_events": [],
+        "reflections": [],
+        "started_at": None,
+        "last_updated": None,
+        "last_generation_duration_s": 0,
+        "llm_provider": prov,
+        "llm_model": model,
+        "stop_reason": None,
+        "max_generation": 50,
+        "checkpoint_generation": 50,
+        "checkpoints_completed": 0,
+        "last_summary": {"score_delta": 0, "successes": [], "problems": [], "improvements": []},
+        "evolution_insights": [],
+        "awaiting_continue": False,
+    }
+    save_state(template)
+    if not LATEST_SUMMARY_FILE.exists():
+        write_text(LATEST_SUMMARY_FILE, "# SEPLE Iteration Summary\n\n**Status:** Fresh start. Awaiting first generation.\n")
+    if not CHECKPOINT_FILE.exists():
+        write_text(CHECKPOINT_FILE, "# SEPLE Checkpoint Report\n\nNo checkpoint yet.\n")
 
 
 def run_git(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -741,38 +820,13 @@ def should_stop(state: dict[str, Any]) -> bool:
 
 
 def reset_state() -> None:
-    template = {
-        "generation": 0,
-        "version": "v1.0.0",
-        "best_score": 0.0,
-        "previous_score": 0.0,
-        "consecutive_high_scores": 0,
-        "status": "idle",
-        "fitness_scores": dict.fromkeys(FITNESS_DIMS, 0),
-        "tokens_used": 0,
-        "tokens_this_gen": 0,
-        "token_history": [],
-        "score_history": [],
-        "self_fix_count": 0,
-        "self_fix_events": [],
-        "reflections": [],
-        "started_at": None,
-        "last_updated": None,
-        "last_generation_duration_s": 0,
-        "llm_provider": os.getenv("SEPLE_LLM_PROVIDER", "openrouter"),
-        "llm_model": os.getenv("SEPLE_MODEL", "google/gemini-2.5-flash"),
-        "stop_reason": None,
-        "max_generation": 50,
-        "checkpoint_generation": 50,
-        "checkpoints_completed": 0,
-        "last_summary": {"score_delta": 0, "successes": [], "problems": [], "improvements": []},
-        "evolution_insights": [],
-        "awaiting_continue": False,
-    }
-    save_state(template)
+    _ensure_fresh_state()
+    # Overwrite logs for a true reset
     write_text(LATEST_SUMMARY_FILE, "# SEPLE Iteration Summary\n\n**Status:** Reset complete.\n")
     write_text(CHECKPOINT_FILE, "# SEPLE Checkpoint Report\n\nNo checkpoint yet.\n")
-    print("State reset.")
+    # Also reset best prompt to the seed if the user wants a full clean start
+    # (we keep the shipped best_prompt.md as the canonical seed)
+    print("State reset to fresh initial (gen 0).")
 
 
 def main() -> None:
@@ -795,6 +849,22 @@ def main() -> None:
             return
 
     ensure_git_repo()
+    if not BEST_PROMPT_FILE.exists():
+        # Ship a minimal viable seed so first evolution has something real to improve
+        seed = """# SEPLE Meta-System Prompt v1.0.0
+
+You are SEPLE v5, an autonomous prompt improver.
+
+## Task
+Analyze the provided current best prompt, score it on the rubric, and return an improved full prompt + JSON.
+
+## Rubric
+clarity, specificity, robustness, iterability, self_awareness, error_recovery (0-100).
+
+Return ONLY the required JSON with full "new_prompt".
+"""
+        write_text(BEST_PROMPT_FILE, seed)
+
     if not INITIAL_PROMPT_FILE.exists():
         write_text(INITIAL_PROMPT_FILE, read_text(BEST_PROMPT_FILE))
 
