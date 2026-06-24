@@ -80,8 +80,8 @@ def run_git(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
 def ensure_git_repo() -> None:
     if not (ROOT / ".git").exists():
         run_git("init")
-        run_git("config", "user.email", "seple@tokenwaster76.dev")
-        run_git("config", "user.name", "SEPLE v5 Runner")
+        run_git("config", "user.email", "tokenwaster76@users.noreply.github.com")
+        run_git("config", "user.name", "tokenwaster76")
 
 
 def git_commit(message: str) -> str | None:

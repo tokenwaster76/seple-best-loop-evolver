@@ -19,7 +19,6 @@ from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TextColumn
-from rich.sparkline import Sparkline
 from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
@@ -91,6 +90,24 @@ def calc_rate(count: float, started_at: str | None) -> float:
     return count / (elapsed / 60)
 
 
+def ascii_sparkline(values: list[float], width: int = 40) -> str:
+    """Render a simple unicode sparkline from score values."""
+    if not values:
+        return "—"
+    blocks = "▁▂▃▄▅▆▇█"
+    if len(values) > width:
+        step = len(values) / width
+        sampled = [values[int(i * step)] for i in range(width)]
+    else:
+        sampled = values
+    lo, hi = min(sampled), max(sampled)
+    span = hi - lo or 1.0
+    return "".join(
+        blocks[min(int((v - lo) / span * (len(blocks) - 1)), len(blocks) - 1)]
+        for v in sampled
+    )
+
+
 def score_color(score: float) -> str:
     if score >= 80:
         return "green"
@@ -155,8 +172,7 @@ def build_fitness_table(state: dict | None) -> Panel:
     for dim in FITNESS_DIMS:
         score = float(fitness.get(dim, 0))
         color = score_color(score)
-        bar = Bar(size=20, begin=0, end=100, color=color)
-        bar.add_segments([(score, color)])
+        bar = Bar(size=score, begin=0, end=100, width=20, color=color)
         table.add_row(dim, f"{score:.0f}", bar)
 
     return Panel(table, title="📊 Fitness Scores", border_style="blue")
@@ -200,7 +216,7 @@ def build_sparkline_panel(state: dict | None) -> Panel:
         content = Text("No score data yet", style="dim")
     else:
         scores = [float(e["score"]) for e in state["score_history"]]
-        spark = Sparkline(scores, style="bold cyan")
+        spark = Text(ascii_sparkline(scores), style="bold cyan")
         latest = scores[-1]
         delta = scores[-1] - scores[-2] if len(scores) > 1 else 0
         sign = "+" if delta > 0 else ""
